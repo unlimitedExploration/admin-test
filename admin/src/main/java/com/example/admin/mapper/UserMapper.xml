@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.admin.mapper.UserMapper">
+    <resultMap id="UserMap" type="com.example.admin.bean.User">
+        <id column="id" property="id" jdbcType="INTEGER"/>
+        <result column="username" property="username" jdbcType="VARCHAR"/>
+        <result column="password" property="password" jdbcType="VARCHAR"/>
+        <result column="enabled" property="enabled" jdbcType="BIT"/>
+        <result column="truename" property="truename" jdbcType="VARCHAR"/>
+        <result column="phone" property="phone" jdbcType="VARCHAR"/>
+        <result column="userface" property="userface" jdbcType="VARCHAR"/>
+        <result column="departmentId" property="departmentId" jdbcType="INTEGER"/>
+        <result column="createTime" property="createTime" jdbcType="TIMESTAMP"/>
+        <result column="updateTime" property="updateTime" jdbcType="TIMESTAMP"/>
+        <association property="department" javaType="com.example.admin.bean.Department">
+            <id column="did" property="id"/>
+            <result column="dname" property="name"/>
+        </association>
+    </resultMap>
+    <resultMap id="UserWithRoles" type="com.example.admin.bean.User" extends="UserMap">
+        <collection property="roles" ofType="com.example.admin.bean.Role">
+            <id column="rid" property="id" />
+            <result column="rname" property="name" />
+            <result column="rnamezh" property="namezh" />
+        </collection>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,username,password,enabled,truename,phone,departmentId,createTime,updateTime
+    </sql>
+
+    <select id="loadUserByUsername" resultMap="UserMap">
+        SELECT * FROM user WHERE username=#{username}
+    </select>
+
+    <!-- 根据用户id查询用户拥有的角色 -->
+    <select id="getRolesByUserId" resultType="com.example.admin.bean.Role">
+        SELECT r.* FROM user_role ur,role r WHERE ur.rid=r.id AND ur.uid=#{uid}
+    </select>
+    <!-- 跟据条件分页查询用户数据 -->
+    <select id="selectUserByPage" resultMap="UserWithRoles">
+        select `u`.*,`d`.`id` AS `did`,`d`.`name` AS `dname`,`r`.`id` AS `rid`,`r`.`name` AS `rname`,`r`.`namezh` AS `rnamezh`
+        from `user` `u` left join `department` `d` on `u`.`departmentId`=`d`.`id`
+        left join `user_role` `ur` on `u`.`id`=`ur`.`uid` left join `role` `r` on `ur`.`rid`=`r`.`id`
+        where `u`.`id` not in (select `ur`.`uid` from `user_role` `ur`,`role` `r` where `ur`.`rid`=`r`.`id` and `r`.`namezh`='系统管理员')
+        <if test="user.truename != null and user.truename != ''">
+            AND `u`.`truename` LIKE concat('%',#{user.truename},'%')
+        </if>
+        <if test="user.phone != null and user.phone != ''">
+            AND `u`.`phone` = #{user.phone}
+        </if>
+        <if test="page != null and size != null">
+            limit #{page},#{size}
+        </if>
+    </select>
+
+    <!-- 查询用户的数量 -->
+    <select id="getTotal" resultType="java.lang.Long">
+        SELECT count(*) FROM `user` WHERE `id` not in (select `ur`.`uid` from `user_role` `ur`,`role` `r` where `ur`.`rid`=`r`.`id` and `r`.`namezh`='系统管理员')
+        <if test="user != null">
+            <if test="user.truename != null and user.truename != ''">
+                AND `truename` LIKE concat('%',#{user.truename},'%')
+            </if>
+            <if test="user.phone != null and user.phone != ''">
+                AND `phone` = #{user.phone}
+            </if>
+        </if>
+    </select>
+
+    <select id="getAllUser" resultType="com.example.admin.bean.User">
+        SELECT * FROM USER
+        <if test="currentId != null">
+            WHERE id != #{currentId}
+        </if>
+    </select>
+
+    <select id="selectByPrimaryKey" resultMap="UserMap" parameterType="java.lang.Integer">
+        select
+        <include refid="Base_Column_List"/>
+        from user
+        where id = #{id,jdbcType=INTEGER}
+    </select>
+
+    <update id="updatePassword">
+        UPDATE user set password=#{encodePwd} WHERE id=#{uid}
+    </update>
+
+    <!-- 删除用户和角色的关联 -->
+    <delete id="deleteRoleByUserId" parameterType="java.lang.Integer">
+        DELETE FROM user_role WHERE uid=#{uid}
+    </delete>
+    <!-- 添加用户和角色的关联 -->
+    <insert id="addRolesToUser">
+        INSERT INTO user_role(uid,rid) VALUES
+        <foreach collection="rids" separator="," item="rid">
+            (#{uid},#{rid})
+        </foreach>
+    </insert>
+    <delete id="deleteUserById" parameterType="java.lang.Integer">
+        DELETE FROM user WHERE id=#{uid}
+    </delete>
+
+    <insert id="insertSelective" parameterType="com.example.admin.bean.User" useGeneratedKeys="true" keyProperty="id">
+        insert into user
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="id != null">
+                id,
+            </if>
+            <if test="username != null">
+                username,
+            </if>
+            <if test="password != null">
+                password,
+            </if>
+            <if test="truename != null">
+                truename,
+            </if>
+            <if test="phone != null">
+                phone,
+            </if>
+            <if test="departmentId != null">
+                departmentId,
+            </if>
+            <if test="createTime != null">
+                createTime,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="id != null">
+                #{id,jdbcType=INTEGER},
+            </if>
+            <if test="username != null">
+                #{username,jdbcType=VARCHAR},
+            </if>
+            <if test="password != null">
+                #{password,jdbcType=VARCHAR},
+            </if>
+            <if test="truename != null">
+                #{truename,jdbcType=VARCHAR},
+            </if>
+            <if test="phone != null">
+                #{phone,jdbcType=VARCHAR},
+            </if>
+            <if test="departmentId != null">
+                #{departmentId,jdbcType=INTEGER},
+            </if>
+            <if test="createTime != null">
+                #{createTime,jdbcType=TIMESTAMP},
+            </if>
+
+        </trim>
+    </insert>
+
+    <update id="updateSelective" parameterType="com.example.admin.bean.User">
+        update user
+        <set>
+            <if test="username != null">
+                username = #{username,jdbcType=VARCHAR},
+            </if>
+            <if test="truename != null">
+                truename = #{truename,jdbcType=VARCHAR},
+            </if>
+            <if test="phone != null">
+                phone = #{phone,jdbcType=VARCHAR},
+            </if>
+            <if test="departmentId != null">
+                departmentId = #{departmentId,jdbcType=INTEGER},
+            </if>
+            <if test="updateTime != null">
+                updateTime = #{departmentId,jdbcType=INTEGER},
+            </if>
+
+        </set>
+        where id=#{id,jdbcType=INTEGER}
+    </update>
+
+    <select id="selectUserByPhone" resultType="com.example.admin.bean.User">
+        select * from user where phone=#{phone}
+    </select>
+    
+    <insert id="insertUsers">
+        insert into user(username,password,truename,phone)
+        values
+        <foreach collection="list" separator="," item="user">
+            (#{user.username,jdbcType=VARCHAR},#{user.password,jdbcType=VARCHAR},#{user.truename,jdbcType=VARCHAR},#{user.phone,jdbcType=VARCHAR})
+        </foreach>
+    </insert>
+</mapper>
